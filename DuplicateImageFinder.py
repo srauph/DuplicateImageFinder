@@ -11,7 +11,7 @@ from PIL import Image
 from colorthief import ColorThief
 
 # Program version
-VERSION = "1.0.B4"
+VERSION = "1.0.B5"
 
 
 # Opening message
@@ -37,9 +37,11 @@ parser.add_argument("-nr", "--no-res-check", action="store_true",
 parser.add_argument("-nc", "--no-cthief-check", action="store_true",
                     help="don't check that two images have the same dominant color.")
 parser.add_argument("-st", "--space-tol", default=20, metavar="tolerance", type=my_int_type,
-                    help="checks that two files' disk space are within the specified %% of the larger. ineffective if -s isn't set.")
+                    help="checks that two files' disk space are within the specified %% of the larger (default: 20%%). ineffective if -s isn't set.")
 parser.add_argument("-cq", "--ct-quality", default=10, metavar="quality", type=my_int_type,
-                    help="sets the quality of the dominant color checking. lower values are more accurate but slower. ineffective if -nc is set.")
+                    help="sets the quality of the dominant color checking (default: 10). lower values are more accurate but slower. ineffective if -nc is set.")
+parser.add_argument("-ct", "--ct-tol", default=10, metavar="tolerance", type=my_int_type,
+                    help="sets the %% tolerance of the dominant color checking (default: 10%%). 0%% requires an exact match to consider images duplicated. ineffective if -nc is set.")
 parser.add_argument("-v", "--verbose", action="store_true",
                     help="prints extra data in the output.")
 
@@ -50,7 +52,8 @@ SKIP_SPACE_CHECK = args.space_check             # Skip checking if the file size
 SKIP_RESOLUTION_CHECK = args.no_res_check       # Skip checking if the images' resolution are the same
 SKIP_COLORTHIEF_CHECK = args.no_cthief_check    # Skip using colorthief to check if the images' dominant color are the same
 TOLERANCE_FILESIZE = args.space_tol/100.0       # Size percentage between two files that suggest duplication
-TOLERANCE_COLORTHIEF = args.ct_quality          # Quality of the colorthief checker to find an image's dominant color
+QUALITY_COLORTHIEF = args.ct_quality            # Quality of the colorthief checker to find an image's dominant color
+TOLERANCE_COLORTHIEF = args.ct_tol/100.0        # Quality of the colorthief checker to find an image's dominant color
 VERBOSE = args.verbose                          # Verbose mode
 
 # Variables
@@ -67,7 +70,7 @@ if not SKIP_SPACE_CHECK:
 else:
     v_space_t = "Space checker tolerance: N/A"
 if not SKIP_COLORTHIEF_CHECK:
-    v_ct_q = "Colorthief quality level: " + str(TOLERANCE_COLORTHIEF)
+    v_ct_q = "Colorthief quality level: " + str(QUALITY_COLORTHIEF)
 else:
     v_ct_q = "Colorthief quality level: N/A"
 
@@ -128,9 +131,21 @@ for f1 in files:
                 i2.resize(((int)(i2.width/10), (int)(i2.height/10)), resample=0, box=None, reducing_gap=None).save(tempDir+"/t2.png")
                 s1 = ColorThief(tempDir+"/t1.png")
                 s2 = ColorThief(tempDir+"/t2.png")
-                if s1.get_color(quality=TOLERANCE_COLORTHIEF) == s2.get_color(quality=TOLERANCE_COLORTHIEF):
+
+                if not TOLERANCE_COLORTHIEF == 0:
+                    colors1 = s1.get_color(quality=QUALITY_COLORTHIEF)
+                    colors2 = s2.get_color(quality=QUALITY_COLORTHIEF)
+                    tolerance_r = max(colors1[0], colors2[0])*TOLERANCE_COLORTHIEF
+                    if -tolerance_r <= colors1[0]-colors2[0] <= tolerance_r:
+                        tolerance_g = max(colors1[1], colors2[1])*TOLERANCE_COLORTHIEF
+                        if -tolerance_g <= colors1[1]-colors2[1] <= tolerance_g:
+                            tolerance_b = max(colors1[2], colors2[2])*TOLERANCE_COLORTHIEF
+                            if -tolerance_b <= colors1[2]-colors2[2] <= tolerance_b:
+                                cthief_result = True
+                
+                elif s1.get_color(quality=QUALITY_COLORTHIEF) == s2.get_color(quality=QUALITY_COLORTHIEF):
                     cthief_result = True
-                # cthief_result = (s1.get_color(quality=TOLERANCE_COLORTHIEF) == s2.get_color(quality=TOLERANCE_COLORTHIEF))
+                # cthief_result = (s1.get_color(quality=QUALITY_COLORTHIEF) == s2.get_color(quality=QUALITY_COLORTHIEF))
 
             if space_result and res_result and cthief_result:
                 print(f1 + " may match " + f2)
